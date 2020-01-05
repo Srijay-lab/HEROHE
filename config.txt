@@ -1,0 +1,18 @@
+[paths]
+data_folder = F:/Projects/HEROHE/Dataset/ImagesForExperiment_200_400
+label_file = F:/Projects/HEROHE/Dataset/DataSets/HEROHE_HER2_STATUS.csv
+model_folder = C:/Users/Srijay/Desktop/Projects/Torch/ResNet/models/
+trained_model_path = C:/Users/Srijay/Desktop/Projects/Torch/ResNet/models/2020-01-04_151920.353167/model.pth
+log_folder = C:/Users/Srijay/Desktop/Projects/Torch/ResNet/logs
+
+[model]
+seed = 21
+mode = train
+eval_aggregate_method = maxvote
+batch_size = 40
+epochs = 40
+lr = 0.01
+train_valid_split = 3:1:1
+augment = false
+one_label_smoothing = false
+
