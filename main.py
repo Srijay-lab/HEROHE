@@ -347,13 +347,22 @@ class HEROHE:
 
                 else:
                     self.model.eval()   # Set model to evaluate mode
-                    print("val len ", len(self.val_labels))
+
+                    print("valid len ", len(self.val_labels))
                     patch_level_accuracy, wsi_accuracy, roc_auc, _, _ = self.evaluate_on_wsi(self.val_images,self.val_labels,self.val_image_names)
-                    print('{} : Patch Level Accuracy : {:.4f} WSI Level Accuracy : {:.4f} AUC ROC : {:.4f}'.format(phase, patch_level_accuracy, wsi_accuracy, roc_auc))
+                    print('valid : Patch Level Accuracy : {:.4f} , WSI Level Accuracy : {:.4f} , AUC ROC : {:.4f}'.format(patch_level_accuracy, wsi_accuracy, roc_auc))
+
+                    print("test len ", len(self.test_labels))
+                    patch_level_accuracy, wsi_accuracy, roc_auc, _, _ = self.evaluate_on_wsi(self.test_images,
+                                                                                             self.test_labels,
+                                                                                             self.test_image_names)
 
                     writer.add_scalar('Patch Accuracy/valid', patch_level_accuracy, epoch)
                     writer.add_scalar('WSI Accuracy/valid', wsi_accuracy, epoch)
                     writer.add_scalar('AUC ROC/valid', roc_auc, epoch)
+
+                    print('test : Patch Level Accuracy : {:.4f} , WSI Level Accuracy : {:.4f} , AUC ROC : {:.4f}'.format(
+                        patch_level_accuracy, wsi_accuracy, roc_auc))
 
                     if(patch_level_accuracy > best_acc): #Save the best model as per accuracy
                         best_acc = patch_level_accuracy
