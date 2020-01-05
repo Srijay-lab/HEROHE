@@ -293,72 +293,72 @@ class HEROHE:
                 curr_data_size = len(input_labels)
 
                 if phase == 'train':
+
                     self.model.train()  # Set model to training mode
                     print("train len ",curr_data_size)
-                else:
-                    self.model.eval()   # Set model to evaluate mode
-                    input_images = self.val_images
-                    input_labels = self.val_labels
-                    curr_data_size = len(input_labels)
-                    print("val len ", curr_data_size)
 
-                running_loss = 0.0
-                running_corrects = 0
+                    running_loss = 0.0
+                    running_corrects = 0
 
-                indices = list(range(0,curr_data_size))
-                batch_indices_list = utils.make_batches_from_indices_list(indices,self.batch_size)
+                    indices = list(range(0, curr_data_size))
+                    batch_indices_list = utils.make_batches_from_indices_list(indices, self.batch_size)
 
-                for batch_indices in batch_indices_list:
+                    for batch_indices in batch_indices_list:
 
-                    batch_input_images = torch.from_numpy(np.array(list(map(input_images.__getitem__,batch_indices)))).float().to(self.device)
-                    batch_input_labels = list(map(input_labels.__getitem__, batch_indices))
-                    if(self.one_label_smoothing):
-                        batch_input_labels_smoooth = np.array(list(map(utils.one_label_smoothing,batch_input_labels)))
-                        batch_input_labels_smoooth = torch.from_numpy(np.array(batch_input_labels_smoooth)).float().to(self.device)
-                    batch_input_labels = torch.from_numpy(np.array(batch_input_labels)).long().to(self.device)
+                        batch_input_images = torch.from_numpy(np.array(list(map(input_images.__getitem__, batch_indices)))).float().to(self.device)
+                        batch_input_labels = list(map(input_labels.__getitem__, batch_indices))
+                        if (self.one_label_smoothing):
+                            batch_input_labels_smoooth = np.array(list(map(utils.one_label_smoothing, batch_input_labels)))
+                            batch_input_labels_smoooth = torch.from_numpy(np.array(batch_input_labels_smoooth)).float().to(self.device)
+                        batch_input_labels = torch.from_numpy(np.array(batch_input_labels)).long().to(self.device)
 
-                    # zero the parameter gradients
-                    optimizer.zero_grad()
+                        # zero the parameter gradients
+                        optimizer.zero_grad()
 
-                    # track history if only in train
-                    with torch.set_grad_enabled(phase == 'train'):
+                        # track history if only in train
+                        with torch.set_grad_enabled(True):
 
-                        outputs = self.model(batch_input_images)
-                        _, preds = torch.max(outputs, 1)
-                        if(self.one_label_smoothing):
-                            outputs = nn.functional.softmax(outputs, dim=1)
-                            outputs = outputs[:, 1]
-                            loss = criterion(outputs,batch_input_labels_smoooth)
-                        else:
-                            loss = criterion(outputs,batch_input_labels)
-                        if phase == 'train':
+                            outputs = self.model(batch_input_images)
+                            _, preds = torch.max(outputs, 1)
+                            if (self.one_label_smoothing):
+                                outputs = nn.functional.softmax(outputs, dim=1)
+                                outputs = outputs[:, 1]
+                                loss = criterion(outputs, batch_input_labels_smoooth)
+                            else:
+                                loss = criterion(outputs, batch_input_labels)
+
                             loss.backward()
                             optimizer.step()
 
-                    running_loss += loss.item() * batch_input_labels.size(0)
-                    running_corrects += torch.sum(preds == batch_input_labels.data)
+                        running_loss += loss.item() * batch_input_labels.size(0)
+                        running_corrects += torch.sum(preds == batch_input_labels.data)
 
-                epoch_loss = running_loss / curr_data_size
-                epoch_acc = running_corrects.double() / curr_data_size
+                    epoch_loss = running_loss / curr_data_size
+                    epoch_acc = running_corrects.double() / curr_data_size
 
-                if phase == 'train':
                     scheduler.step()
                     writer.add_scalar('Loss/train', epoch_loss, epoch)
                     writer.add_scalar('Accuracy/train', epoch_acc, epoch)
+
+                    print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                        phase, epoch_loss, epoch_acc))
+
+                    logfile.write(str(epoch + 1) + " " + phase + " " + " accuracy - " + str(epoch_acc.item()) + "\n")
+
                 else:
-                    writer.add_scalar('Loss/valid', epoch_loss, epoch)
-                    writer.add_scalar('Accuracy/valid', epoch_acc, epoch)
+                    self.model.eval()   # Set model to evaluate mode
+                    print("val len ", len(self.val_labels))
+                    patch_level_accuracy, wsi_accuracy, roc_auc, _, _ = self.evaluate_on_wsi(self.val_images,self.val_labels,self.val_image_names)
+                    print('{} : Patch Level Accuracy : {:.4f} WSI Level Accuracy : {:.4f} AUC ROC : {:.4f}'.format(phase, patch_level_accuracy, wsi_accuracy, roc_auc))
 
-                print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                    phase, epoch_loss, epoch_acc))
+                    writer.add_scalar('Patch Accuracy/valid', patch_level_accuracy, epoch)
+                    writer.add_scalar('WSI Accuracy/valid', wsi_accuracy, epoch)
+                    writer.add_scalar('AUC ROC/valid', roc_auc, epoch)
 
-                logfile.write(str(epoch+1) + " " + phase + " " + " accuracy - " + str(epoch_acc.item()) + "\n")
-
-                # deep copy the model
-                if phase == 'val' and epoch_acc > best_acc:
-                    best_acc = epoch_acc
-                    best_model_wts = copy.deepcopy(self.model.state_dict())
-                    best_epoch = epoch+1
+                    if(patch_level_accuracy > best_acc): #Save the best model as per accuracy
+                        best_acc = patch_level_accuracy
+                        best_model_wts = copy.deepcopy(self.model.state_dict())
+                        best_epoch = epoch + 1
 
             if ((epoch+1)%5==0): #Save model after every 5 Epochs
                 print("Saving the model after epoch number ",(epoch+1))
@@ -385,13 +385,16 @@ class HEROHE:
         self.model.eval()
 
         print("Evaluating model on training data =>")
-        self.evaluate_on_data_wsi(self.train_images,self.train_labels,self.train_image_names)
+        _, _, roc_auc, fpr, tpr = self.evaluate_on_wsi(self.train_images,self.train_labels,self.train_image_names)
+        self.plot_auc(fpr,tpr,roc_auc)
         print("Evaluating model on validation data =>")
-        self.evaluate_on_data_wsi(self.val_images,self.val_labels,self.val_image_names)
+        _, _, roc_auc, fpr, tpr = self.evaluate_on_wsi(self.val_images,self.val_labels,self.val_image_names)
+        self.plot_auc(fpr, tpr, roc_auc)
         print("Evaluating model on Test data =>")
-        self.evaluate_on_data_wsi(self.test_images, self.test_labels, self.test_image_names)
+        _, _, roc_auc, fpr, tpr = self.evaluate_on_wsi(self.test_images, self.test_labels, self.test_image_names)
+        self.plot_auc(fpr, tpr, roc_auc)
 
-    def evaluate_on_data_wsi(self,input_images,input_labels,inpur_image_names):
+    def evaluate_on_wsi(self,input_images,input_labels,inpur_image_names):
 
         #Patch level computation
         input_len = len(input_labels)
@@ -417,10 +420,9 @@ class HEROHE:
         assert (len(pred_patch_pos_probs) == input_len)
         assert (len(inpur_image_names) == input_len)
         pred_patch_labels = pred_patch_labels.cpu().numpy()
-        print("Right combinations found => ",np.sum(input_labels==pred_patch_labels))
+        #print("Right combinations found => ",np.sum(input_labels==pred_patch_labels))
         patch_level_accuracy = np.sum(input_labels==pred_patch_labels)/input_len
-        print("Patch Level Accuracy => ", patch_level_accuracy)
-        print("Computation is completed")
+        #print("Patch Level Accuracy => ", patch_level_accuracy)
 
         #WSI level computation
         pred_patch_pos_probs = pred_patch_pos_probs.cpu().numpy()
@@ -430,15 +432,8 @@ class HEROHE:
         slide_posprob_dict = {}
         slide_negprob_dict = {}
         slide_winner_dict = {}
-        logfile = open(self.log_file, "w")
-        logfile.write("Dataset used => " + str(self.data_folder))
-        logfile.write("Learning rate => " + str(self.lr))
-        logfile.write("Seed => " + str(self.seed))
-        logfile.write("Batch Size => " + str(self.batch_size))
-        logfile.write("ImageName,PosProb,NegProb,ActualLabel\n")
 
         i=0
-        loosers = 0
         for image_name in inpur_image_names:
             splt = image_name.split("_")
             slide_num = int(splt[0])
@@ -458,10 +453,7 @@ class HEROHE:
                 slide_posprob_dict[slide_num] = posprob
                 slide_negprob_dict[slide_num] = negprob
                 slide_winner_dict[slide_num] = k
-            logfile.write(image_name + "," + str(posprob) + "," + str(negprob) + "," + str(self.case_label_map[slide_num]) + "\n")
             i+=1
-        print("Number of loosers => ",loosers)
-        logfile.close()
 
         num_slides = len(slide_imagenum_dict)
         pred_wsi_labels = []
@@ -481,21 +473,31 @@ class HEROHE:
 
         true_wsi_labels = np.array(true_wsi_labels)
         pred_wsi_labels = np.array(pred_wsi_labels)
-        print("Confusion matrix =>")
-        print(confusion_matrix(true_wsi_labels, pred_wsi_labels))
 
-        print("Slides => ",slides)
-        print("True Labels => ",true_wsi_labels)
-        print("Predicted Labels => ",pred_wsi_labels)
-        print("Predicted Pos Probs => ",pred_pos_wsi_probs)
-        print("Predicted Neg Probs => ", pred_neg_wsi_probs)
-
-        accuracy = np.sum(true_wsi_labels==pred_wsi_labels)/num_slides
+        wsi_accuracy = np.sum(true_wsi_labels == pred_wsi_labels) / num_slides
         f1_macro = f1_score(true_wsi_labels, pred_wsi_labels, average='macro')
         f1_micro = f1_score(true_wsi_labels, pred_wsi_labels, average='micro')
 
         fpr, tpr, threshold = metrics.roc_curve(true_wsi_labels, pred_pos_wsi_probs)
         roc_auc = metrics.auc(fpr, tpr)
+
+        if(self.mode == "eval"):
+            print("Confusion matrix =>")
+            print(confusion_matrix(true_wsi_labels, pred_wsi_labels))
+            print("Slides => ", slides)
+            print("True Labels => ", true_wsi_labels)
+            print("Predicted Labels => ", pred_wsi_labels)
+            print("Predicted Pos Probs => ", pred_pos_wsi_probs)
+            print("Predicted Neg Probs => ", pred_neg_wsi_probs)
+            print("ACCURACY => ", wsi_accuracy)
+            print("AUC ROC => ", roc_auc)
+            print("F1 Macro => ", f1_macro)
+            print("F1 Micro => ", f1_micro)
+            print("AUC ROC => ",roc_auc)
+
+        return patch_level_accuracy,wsi_accuracy,roc_auc,fpr,tpr
+
+    def plot_auc(self,fpr,tpr,roc_auc):
 
         plt.title('Receiver Operating Characteristic')
         plt.plot(fpr, tpr, 'b', label='AUC = %0.2f' % roc_auc)
@@ -506,11 +508,6 @@ class HEROHE:
         plt.ylabel('True Positive Rate')
         plt.xlabel('False Positive Rate')
         plt.show()
-
-        print("ACCURACY => ",accuracy)
-        print("AUC ROC => ",roc_auc)
-        print("F1 Macro => ", f1_macro)
-        print("F1 Micro => ", f1_micro)
 
 if __name__ == "__main__":
     print("Let us solve HEROHE")

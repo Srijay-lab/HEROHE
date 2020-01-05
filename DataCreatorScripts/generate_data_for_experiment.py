@@ -65,9 +65,9 @@ if __name__ == "__main__":
   parser.add_argument('--annotated-image-folder', default='F:/Projects/HEROHE/Dataset/AnnotatedPatches',
                       help='Give the path to directory containing annotated images of the format => [slide number]_x_y_[label]')
   parser.add_argument('--min-white-filter-threshold', default=120, type=int,
-                      help='Give the path to directory containing annotated images')
+                      help='Min white filter threshold')
   parser.add_argument('--max-white-filter-threshold', default=200, type=int,
-                      help='Give the path to directory containing annotated images')
+                      help='Max white filter threshold')
   parser.add_argument('--max-patches-per-slide', default=500, type=int,
                       help='Max number of patches per slide')
   parser.add_argument('--labels', default="2,4",
