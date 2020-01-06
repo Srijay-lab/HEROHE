@@ -10,7 +10,7 @@ Aim is to collect the annotated patches for experimentation of resnet. Detailed 
 
 1. Annotated Patches Collection
 
-The code is pushed here for this. Using this, we extracted the annotated patches from WSIs of size 256*256 with the magnification 10X. We get .png images with the format -
+The code is pushed here for this here - https://github.com/Srijay-lab/py-wsi . Using this, we extracted the annotated patches from WSIs of size 256*256 with the magnification 10X. We get .png images with the format -
 [slide number]_x_y_[label]. The label is the integer that you used for the annotation while doing first step.
 
 2. Tile scoring and filtering
